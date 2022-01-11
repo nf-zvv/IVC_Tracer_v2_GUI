@@ -1,10 +1,12 @@
 import sys
 import serial
 import csv
+import os
 import serial.tools.list_ports as port_list
+from datetime import datetime
 
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QFileDialog, QListWidgetItem
 
 from MainWindowForm import Ui_MainWindow
 from UartSettingsDialogForm import Ui_UartSettingsDialog
@@ -12,6 +14,8 @@ from UartSettingsDialogForm import Ui_UartSettingsDialog
 parities = [serial.PARITY_NONE, serial.PARITY_ODD, serial.PARITY_EVEN, serial.PARITY_MARK, serial.PARITY_SPACE]
 stopbits = [serial.STOPBITS_ONE, serial.STOPBITS_ONE_POINT_FIVE, serial.STOPBITS_TWO]
 bytesize = [serial.FIVEBITS, serial.SIXBITS, serial.SEVENBITS, serial.EIGHTBITS]
+
+folder_name = './archive'
 
 
 class UartSettingsDialog(QDialog):
@@ -75,6 +79,11 @@ class MainWindow(QMainWindow):
         self.ui.action_connect.triggered.connect(self.connect_serial)
         self.ui.execButton.clicked.connect(self.plot_data)
         self.ui.action_open.triggered.connect(self.open_data)
+        self.ui.saveGraphButton.clicked.connect(self.save_data_to_csv)
+        self.ui.saveGraphButton.setEnabled(False)
+
+        self.update_file_list()
+        self.ui.listOfFiles.currentItemChanged.connect(self.change_file)
 
     serialPort = serial.Serial()
 
@@ -178,7 +187,12 @@ class MainWindow(QMainWindow):
             print(fileName)
             with open(fileName, 'r', newline='', encoding='utf-8') as File:
                 data = csv.reader(File, delimiter=';')
+                # Переводим милливольты и миллиамперы в вольты и амперы
                 result = list(map(self.div1000, data))
+                # Сортировка по столбцу с напряжением
+                result = sorted(result, key=lambda row: row[0])
+                # Разбиваем данные по квадратнам
+                # и формируем по два отдельных списка с координатами x и y
                 for u, i in result:
                     if u >= 0 and i >= 0:
                         self.quadrant_1_x.append(u)
@@ -193,7 +207,51 @@ class MainWindow(QMainWindow):
                         self.quadrant_4_x.append(u)
                         self.quadrant_4_y.append(i)
 
+    def save_data_to_csv(self):
+        now = datetime.now()
+        filename = now.strftime('%Y%m%d%H%M%S.csv')
+        now_time = now.strftime('%H:%M:%S')
+        now_date = now.strftime('%d.%m.%Y')
+
+        data = [['NAME', self.ui.dutName.text()],
+                ['DATE', now_date],
+                ['TIME', now_time],
+                ['ILLUMINATION', self.ui.illumination.text()],
+                ['TEMPERATURE', self.ui.temperature.text()],
+                ['COMMENT', self.ui.comment.toPlainText()],
+                ['FORVARD_IVC_DAC_START', self.ui.FrvdBrBegin.value()],
+                ['FORVARD_IVC_DAC_END', self.ui.FrvdBrEnd.value()],
+                ['FORVARD_IVC_DAC_STEP', self.ui.FrvdBrStep.value()],
+                ['REVERSE_IVC_DAC_START', self.ui.RevBrBegin.value()],
+                ['REVERSE_IVC_DAC_END', self.ui.RevBrEnd.value()],
+                ['REVERSE_IVC_DAC_STEP', self.ui.RevBrStep.value()],
+                ['VAH_DELAY', 20],
+                ['U', 'I']]
+
+        data += list(map(list, zip(self.quadrant_1_x, self.quadrant_1_y)))
+        data += list(map(list, zip(self.quadrant_2_x, self.quadrant_2_y)))
+        data += list(map(list, zip(self.quadrant_3_x, self.quadrant_3_y)))
+        data += list(map(list, zip(self.quadrant_4_x, self.quadrant_4_y)))
+
+        File = open(os.path.join(folder_name, filename), 'w', newline='', encoding='utf-8')
+        with File:
+            writer = csv.writer(File, delimiter=';')
+            writer.writerows(data)
+
+        self.ui.saveGraphButton.setEnabled(False)
+
+        self.ui.listOfFiles.currentItemChanged.disconnect()
+        self.ui.listOfFiles.clear()
+        self.update_file_list()
+        # Вешааем сигнал изменения текущего пункта списка
+        self.ui.listOfFiles.currentItemChanged.connect(self.change_file)
+
     def plot_data(self):
+        self.ui.plotWidget.canvas.ax1.clear()
+        self.ui.plotWidget.canvas.ax2.clear()
+        self.ui.plotWidget.canvas.ax3.clear()
+        self.ui.plotWidget.canvas.ax4.clear()
+
         self.ui.plotWidget.canvas.ax1.plot(self.quadrant_2_x, self.quadrant_2_y, 'tab:blue', marker='o', linestyle='')    # II  quadrant
         self.ui.plotWidget.canvas.ax2.plot(self.quadrant_1_x, self.quadrant_1_y, 'tab:blue', marker='o', linestyle='')  # I   quadrant
         self.ui.plotWidget.canvas.ax3.plot(self.quadrant_3_x, self.quadrant_3_y, 'tab:blue', marker='o', linestyle='')   # III quadrant
@@ -215,6 +273,30 @@ class MainWindow(QMainWindow):
         self.ui.plotWidget.canvas.ax4.set_ylim(ymin=None, ymax=0)
 
         self.ui.plotWidget.canvas.draw()
+
+        self.ui.saveGraphButton.setEnabled(True)
+
+    def update_file_list(self):
+        # Получаем список файлов
+        files = os.listdir(folder_name)
+        # Самые свежие файлы сверху
+        files.sort(reverse=True)
+        # Добавляем файлы в список
+        for f in files:
+            name = f.split('.')[0]
+            item = QListWidgetItem(name)
+            self.ui.listOfFiles.addItem(item)
+
+    def change_file(self, item):
+        with open(os.path.join(folder_name, item.text() + '.csv'), 'r', newline='', encoding='utf-8') as File:
+            data = list(csv.reader(File, delimiter=';'))
+            self.ui.dutNameValue.setText(data[0][1])
+            self.ui.dateValue.setText(data[1][1])
+            self.ui.timeValue.setText(data[2][1])
+            self.ui.illuminationValue.setText(data[3][1])
+            self.ui.temperatureValue.setText(data[4][1])
+            self.ui.comment_2.clear()
+            self.ui.comment_2.insertPlainText(data[5][1])
 
 
 if __name__ == '__main__':
