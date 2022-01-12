@@ -12,8 +12,8 @@ matplotlib.use('QT5Agg')
 class MplCanvas(Canvas):
     def __init__(self):
         self.fig = Figure()
-        gs = self.fig.add_gridspec(2, 2, hspace=0, wspace=0)
-        (self.ax1, self.ax2), (self.ax3, self.ax4) = gs.subplots(sharex='col', sharey='row')
+        # gs = self.fig.add_gridspec(2, 2, hspace=0, wspace=0)
+        # (self.ax1, self.ax2), (self.ax3, self.ax4) = gs.subplots(sharex='col', sharey='row')
         Canvas.__init__(self, self.fig)
         Canvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         Canvas.updateGeometry(self)

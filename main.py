@@ -1,4 +1,6 @@
 import sys
+
+import numpy
 import serial
 import csv
 import os
@@ -6,10 +8,12 @@ import serial.tools.list_ports as port_list
 from datetime import datetime
 
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QFileDialog, QListWidgetItem
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QFileDialog, QListWidgetItem, QHBoxLayout
 
 from MainWindowForm import Ui_MainWindow
 from UartSettingsDialogForm import Ui_UartSettingsDialog
+from mplwidget import MplWidget
+from matplotlib.figure import Figure
 
 parities = [serial.PARITY_NONE, serial.PARITY_ODD, serial.PARITY_EVEN, serial.PARITY_MARK, serial.PARITY_SPACE]
 stopbits = [serial.STOPBITS_ONE, serial.STOPBITS_ONE_POINT_FIVE, serial.STOPBITS_TWO]
@@ -72,6 +76,29 @@ class MainWindow(QMainWindow):
         self.quadrant_4_y = []
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+
+        self.horizontalLayoutPlot_1 = QHBoxLayout(self.ui.groupBox_IVC_Tracer)
+        self.horizontalLayoutPlot_1.setObjectName("horizontalLayoutPlot_1")
+        self.horizontalLayoutPlot_1.setSpacing(0)
+        self.horizontalLayoutPlot_1.setContentsMargins(0, 0, 0, 0)
+        self.plotWidget = MplWidget(self.ui.groupBox_IVC_Tracer)
+        self.plotWidget.setObjectName("plotWidget")
+        self.horizontalLayoutPlot_1.addWidget(self.plotWidget, 0)
+
+        # Делаем 4 графика как один
+        gs = self.plotWidget.canvas.fig.add_gridspec(2, 2, hspace=0, wspace=0)
+        (self.ax1, self.ax2), (self.ax3, self.ax4) = gs.subplots(sharex='col', sharey='row')
+
+        self.horizontalLayoutPlot_2 = QHBoxLayout(self.ui.groupBox_Archive)
+        self.horizontalLayoutPlot_2.setObjectName("horizontalLayoutPlot_2")
+        self.horizontalLayoutPlot_2.setSpacing(0)
+        self.horizontalLayoutPlot_2.setContentsMargins(0, 0, 0, 0)
+        self.plotWidget_2 = MplWidget(self.ui.groupBox_Archive)
+        self.plotWidget_2.setObjectName("plotWidget_2")
+        self.horizontalLayoutPlot_2.addWidget(self.plotWidget_2, 0)
+
+        gs = self.plotWidget_2.canvas.fig.add_gridspec(2, 2, hspace=0, wspace=0)
+        (self.ax1_2, self.ax2_2), (self.ax3_2, self.ax4_2) = gs.subplots(sharex='col', sharey='row')
 
         self.ui.pushButton.clicked.connect(self.port_settings)
         self.ui.pushButton_2.clicked.connect(self.connect_serial)
@@ -247,32 +274,32 @@ class MainWindow(QMainWindow):
         self.ui.listOfFiles.currentItemChanged.connect(self.change_file)
 
     def plot_data(self):
-        self.ui.plotWidget.canvas.ax1.clear()
-        self.ui.plotWidget.canvas.ax2.clear()
-        self.ui.plotWidget.canvas.ax3.clear()
-        self.ui.plotWidget.canvas.ax4.clear()
+        self.ax1.clear()
+        self.ax2.clear()
+        self.ax3.clear()
+        self.ax4.clear()
 
-        self.ui.plotWidget.canvas.ax1.plot(self.quadrant_2_x, self.quadrant_2_y, 'tab:blue', marker='o', linestyle='')    # II  quadrant
-        self.ui.plotWidget.canvas.ax2.plot(self.quadrant_1_x, self.quadrant_1_y, 'tab:blue', marker='o', linestyle='')  # I   quadrant
-        self.ui.plotWidget.canvas.ax3.plot(self.quadrant_3_x, self.quadrant_3_y, 'tab:blue', marker='o', linestyle='')   # III quadrant
-        self.ui.plotWidget.canvas.ax4.plot(self.quadrant_4_x, self.quadrant_4_y, 'tab:blue', marker='o', linestyle='')     # IV  quadrant
+        self.ax1.plot(self.quadrant_2_x, self.quadrant_2_y, 'tab:blue', marker='o', linestyle='')  # II  quadrant
+        self.ax2.plot(self.quadrant_1_x, self.quadrant_1_y, 'tab:blue', marker='o', linestyle='')  # I   quadrant
+        self.ax3.plot(self.quadrant_3_x, self.quadrant_3_y, 'tab:blue', marker='o', linestyle='')  # III quadrant
+        self.ax4.plot(self.quadrant_4_x, self.quadrant_4_y, 'tab:blue', marker='o', linestyle='')  # IV  quadrant
 
-        self.ui.plotWidget.canvas.ax1.grid(True)
-        self.ui.plotWidget.canvas.ax2.grid(True)
-        self.ui.plotWidget.canvas.ax3.grid(True)
-        self.ui.plotWidget.canvas.ax4.grid(True)
+        self.ax1.grid(True)
+        self.ax2.grid(True)
+        self.ax3.grid(True)
+        self.ax4.grid(True)
 
         # Установка нулевых предеов по осям
-        self.ui.plotWidget.canvas.ax1.set_xlim(xmin=None, xmax=0)
-        self.ui.plotWidget.canvas.ax1.set_ylim(ymin=0, ymax=None)
-        self.ui.plotWidget.canvas.ax2.set_xlim(xmin=0, xmax=None)
-        self.ui.plotWidget.canvas.ax2.set_ylim(ymin=0, ymax=None)
-        self.ui.plotWidget.canvas.ax3.set_xlim(xmin=None, xmax=0)
-        self.ui.plotWidget.canvas.ax3.set_ylim(ymin=None, ymax=0)
-        self.ui.plotWidget.canvas.ax4.set_xlim(xmin=0, xmax=None)
-        self.ui.plotWidget.canvas.ax4.set_ylim(ymin=None, ymax=0)
+        self.ax1.set_xlim(xmin=None, xmax=0)
+        self.ax1.set_ylim(ymin=0, ymax=None)
+        self.ax2.set_xlim(xmin=0, xmax=None)
+        self.ax2.set_ylim(ymin=0, ymax=None)
+        self.ax3.set_xlim(xmin=None, xmax=0)
+        self.ax3.set_ylim(ymin=None, ymax=0)
+        self.ax4.set_xlim(xmin=0, xmax=None)
+        self.ax4.set_ylim(ymin=None, ymax=0)
 
-        self.ui.plotWidget.canvas.draw()
+        self.plotWidget.canvas.draw()
 
         self.ui.saveGraphButton.setEnabled(True)
 
@@ -297,6 +324,58 @@ class MainWindow(QMainWindow):
             self.ui.temperatureValue.setText(data[4][1])
             self.ui.comment_2.clear()
             self.ui.comment_2.insertPlainText(data[5][1])
+            x1 = []
+            y1 = []
+            quadrant_2_x = []
+            quadrant_2_y = []
+            quadrant_3_x = []
+            quadrant_3_y = []
+            quadrant_4_x = []
+            quadrant_4_y = []
+            for row in range(14, len(data)):
+                u = float(data[row][0])
+                i = float(data[row][1])
+                if u >= 0 and i >= 0:
+                    x1.append(u)
+                    y1.append(i)
+                elif u <= 0 and i >= 0:
+                    quadrant_2_x.append(u)
+                    quadrant_2_y.append(i)
+                elif u <= 0 and i <= 0:
+                    quadrant_3_x.append(u)
+                    quadrant_3_y.append(i)
+                elif u >= 0 and i <= 0:
+                    quadrant_4_x.append(u)
+                    quadrant_4_y.append(i)
+                else:
+                    print('Не цифра')
+
+            self.plotWidget_2.canvas.fig.clear()
+
+            gs = self.plotWidget_2.canvas.fig.add_gridspec(2, 2, hspace=0, wspace=0)
+            (self.ax1_2, self.ax2_2), (self.ax3_2, self.ax4_2) = gs.subplots(sharex='col', sharey='row')
+
+            self.ax1_2.plot(quadrant_2_x, quadrant_2_y, 'tab:blue', marker='o', linestyle='')  # II  quadrant
+            self.ax2_2.plot(x1, y1, 'tab:blue', marker='o', linestyle='')  # I   quadrant
+            self.ax3_2.plot(quadrant_3_x, quadrant_3_y, 'tab:blue', marker='o', linestyle='')  # III quadrant
+            self.ax4_2.plot(quadrant_4_x, quadrant_4_y, 'tab:blue', marker='o', linestyle='')  # IV  quadrant
+
+            self.ax1_2.grid(True)
+            self.ax2_2.grid(True)
+            self.ax3_2.grid(True)
+            self.ax4_2.grid(True)
+
+            # Установка нулевых предеов по осям
+            self.ax1_2.set_xlim(xmin=None, xmax=0)
+            self.ax1_2.set_ylim(ymin=0, ymax=None)
+            self.ax2_2.set_xlim(xmin=0, xmax=None)
+            self.ax2_2.set_ylim(ymin=0, ymax=None)
+            self.ax3_2.set_xlim(xmin=None, xmax=0)
+            self.ax3_2.set_ylim(ymin=None, ymax=0)
+            self.ax4_2.set_xlim(xmin=0, xmax=None)
+            self.ax4_2.set_ylim(ymin=None, ymax=0)
+
+            self.plotWidget_2.canvas.draw()
 
 
 if __name__ == '__main__':
